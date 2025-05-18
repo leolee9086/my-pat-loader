@@ -542,9 +542,3 @@ function clipLineLiangBarsky(x1, y1, x2, y2, boundary) {
   return [clippedX1, clippedY1, clippedX2, clippedY2];
 }
 
-// Helper function for line clipping (e.g., Cohen-Sutherland or Liang-Barsky)
-// function clipLine(line, boundary) {
-//   // line: [{x, y}, {x, y}]
-//   // boundary: {minX, minY, maxX, maxY}
-//   // Returns clipped line or null if entirely outside
-// } 

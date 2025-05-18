@@ -229,3 +229,178 @@
     -   **原参数**: `{ x: 0, y: 0, width: 1000, height: 1000 }`
     -   **新参数**: `{ x: -100, y: -100, width: 200, height: 200 }`
     -   **目的**: 将图案生成的默认预览区域中心从左上角 (0,0) 移至 PAT 文件的原点 (0,0)，并设置预览区域的宽高各为 200 单位。这有助于在预览时更好地观察以 PAT 原点为中心的图案特征。 
+
+## 2025-05-18 20:12 (织)
+
+- **添加 WebGPU 与 CPU 实现的切换功能**:
+  - **主要目标**: 在示例应用中增加 WebGPU 加速与 CPU 实现的切换功能，默认使用 WebGPU 加速
+  - **主要改动**:
+    - 将直接引入的 `patCalculator.js` 模块替换为动态的实现引用
+    - 添加 `useWebGPU` 状态变量，默认为 `true`
+    - 添加 `gpuStatus` 状态变量跟踪 WebGPU 可用性
+    - 实现 `checkWebGPUAvailability()` 函数，启动时自动检测 WebGPU 能力
+    - 实现 `handleEngineChange()` 函数处理引擎切换操作
+    - UI 中添加滑块开关，允许用户手动切换渲染引擎
+    - 优化渲染性能，应用引擎切换后自动重新生成预览
+    - 所有计算函数调用修改为异步调用，支持 WebGPU 并行计算模式
+  - **UI改进**:
+    - 在控制面板添加优雅的滑块切换按钮
+    - 显示当前 WebGPU 状态（可用/不可用）
+    - 当 WebGPU 不可用时自动回退到 CPU 模式并禁用切换
+  - **降级机制**:
+    - 浏览器不支持 WebGPU 时自动回退到 CPU 实现
+    - WebGPU 初始化失败时提供清晰的错误信息
+
+## 2025-05-18 18:26 (织)
+
+- **重构 `patLineGenerator.js`**:
+    - **主要目标**: 拆分过长的 `generateLinesForRuleInPreview` 函数，提高代码模块化和可读性。
+    - **主要改动**:
+        - `generateLinesForRuleInPreview`: 保留了计算平行线族迭代范围 (`pStepsMin`, `pStepsMax`) 和 `pStep` 循环的逻辑。在循环内部，调用新的辅助函数 `processSingleParallelLine` 处理单条平行线的线段生成。
+        - **新增 `processSingleParallelLine` 函数**: 
+            - 接收单条平行线的相关参数（基准原点、角度信息、虚线定义、`deltaX`、预览框等）。
+            - 根据 `dashes` 参数是否存在，决定调用 `generateSolidSegmentForLine` (处理实线) 或 `generateDashedSegmentsForLine` (处理虚线)。
+            - 返回生成的线段数组、实际增加的线条数以及潜在的错误信息。
+        - **新增 `generateSolidSegmentForLine` 函数**:
+            - 负责具体实线线段的几何计算和裁剪。
+            - 处理有限长度实线 (`deltaX != 0`) 和"无限长"实线 (`deltaX == 0`) 两种情况，并调用 `clipLineSegmentToRect` 进行裁剪。
+        - **新增 `generateDashedSegmentsForLine` 函数**:
+            - 负责具体虚线线段的几何计算和裁剪。
+            - 处理 `deltaX` 为零 (虚线沿线重复) 和 `deltaX` 非零 (虚线组按 `deltaX` 重复) 两种主要情况。
+            - 内部管理虚线模式的迭代、单个虚线段的计算和裁剪，并处理线条数量上限。
+    - **效果**: 原本复杂的 `generateLinesForRuleInPreview` 函数的核心逻辑被分解到多个更小、职责更单一的函数中，使得每个函数的逻辑更清晰，易于理解和维护。
+    - 相关的错误处理和线条数量限制逻辑也随之分散到新函数中，并通过返回值向上传递。
+
+## 2025-05-18 织
+
+- **创建 `patParser.js`**: 
+    - 包含 `parsePatContent` 函数，用于解析 PAT 文件字符串内容。
+    - 从 `textureBackerDemo` 项目中的 `patLoader.js` 迁移并调整了注释和部分逻辑，使其更专注于解析任务。
+- **创建 `patLineGenerator.js`**:
+    - 包含 `createPatternFromPATFile` 函数，用于根据解析后的 PAT 数据生成线条序列。
+    - 从 `textureBackerDemo` 项目中的 `patLoader.js` 迁移并调整。
+    - 优化了 JSDoc 注释，明确了输入参数和输出结构。
+    - 调整了 `originOffsetX` 和 `originOffsetY` 的默认值为生成画布的中心。
+    - 增强了对边界条件和重复步数的计算，增加了安全边距。
+    - 细化了对虚线模式中特殊情况（如零长度虚线定义）的处理逻辑。
+- **目的**: 将 PAT 文件处理的核心逻辑模块化，分离解析与生成步骤，为后续在 `example` UI 中调用和测试打下基础。 
+
+## [[timestamp]] 织
+
+- **`patLineGenerator.js` (`createPatternFromPATFile`)**:
+    - 将原先硬编码的 `MAX_GENERATED_LINES` (值为 10000) 修改为一个新的函数参数 `maxGeneratedLines`。
+    - JSDoc 中为该参数添加了说明，并设置了默认值为 10000。
+    - 此修改允许调用方动态控制生成图案时的最大线条数量，增强了灵活性并避免了因图案复杂导致的潜在性能问题或截断。 
+
+## 2024-MM-DD (织)
+
+- **修复 `my-pat-loader/example/src/App.vue` 中的导入错误:**
+    - **问题**: `App.vue` 尝试从 `patLineGenerator.js` 导入一个不存在的函数 `createPatternFromPATFile`，导致运行时错误。
+    - **修改**:
+        1. 将 `App.vue` 中的导入语句从 `import { createPatternFromPATFile } from '../../src/patLineGenerator.js';` 修改为 `import { generatePatternPresentation } from '../../src/patLineGenerator.js';`。
+        2. 相应地，将调用 `createPatternFromPATFile(generationParams)` 的地方修改为 `generatePatternPresentation(generationParams)`。
+        3. 更新了 `generationParams` 对象的结构以匹配 `generatePatternPresentation` 函数的参数签名。具体地：
+            - `generationWidth` 和 `generationHeight` 合并为 `previewBox: { x: 0, y: 0, width: ..., height: ... }`。
+            - `uvWidthScale` 和 `uvHeightScale` 合并为 `uvScale: { width: ..., height: ... }`。
+            - `patLineWidth` 重命名为 `defaultLineWidth`。
+            - `maxGeneratedLines` 重命名为 `maxTotalGeneratedLines`。
+    - **原因**: `patLineGenerator.js` 实际导出的函数是 `generatePatternPresentation`。确保前端示例代码使用正确的函数名和参数结构。 
+
+## 2025-05-18 20:15 (织)
+
+- **修复 `PatCanvasRenderer.vue` 中画布无限扩大问题**:
+  - **问题描述**: 用户报告在加载PAT文件后，画布大小会无限扩大，导致性能问题和UI异常。
+  - **问题分析**: 原因是ResizeObserver触发的尺寸调整会导致新的布局变化，形成无限循环。具体来说：
+    1. ResizeObserver检测到容器尺寸变化
+    2. 更新Stage尺寸
+    3. 新的Stage尺寸可能导致父级容器的微小变化
+    4. 这些微小变化再次触发ResizeObserver
+    5. 形成无限循环，尺寸不断增长
+  - **主要修复**:
+    1. 添加`isResizing`标志防止重复处理同一尺寸变化事件
+    2. 添加`prevWidth`和`prevHeight`跟踪前一次的尺寸
+    3. 实现尺寸变化检测阈值，忽略微小变化（<1px）
+    4. 添加最大尺寸限制（3000px），防止意外情况下的无限增长
+    5. 使用`requestAnimationFrame`优化渲染性能
+    6. 添加100ms的防抖延迟，确保尺寸稳定后再允许新的调整
+    7. 添加`overflow: hidden`样式属性防止滚动条出现导致的新一轮尺寸变化
+  - **其他改进**:
+    1. 修正了图案宽高比计算逻辑，从使用`aspectRatio`属性改为使用`width`和`height`
+    2. 添加了更明确的注释解释尺寸调整过程中的限制条件
+    3. 增加日志输出，便于调试尺寸变化
+
+## 2025-05-18 20:12 (织)
+
+- **添加 WebGPU 与 CPU 实现的切换功能**:
+  - **主要目标**: 在示例应用中增加 WebGPU 加速与 CPU 实现的切换功能，默认使用 WebGPU 加速
+  - **主要改动**:
+    - 将直接引入的 `patCalculator.js` 模块替换为动态的实现引用
+    - 添加 `useWebGPU` 状态变量，默认为 `true`
+    - 添加 `gpuStatus` 状态变量跟踪 WebGPU 可用性
+    - 实现 `checkWebGPUAvailability()` 函数，启动时自动检测 WebGPU 能力
+    - 实现 `handleEngineChange()` 函数处理引擎切换操作
+    - UI 中添加滑块开关，允许用户手动切换渲染引擎
+    - 优化渲染性能，应用引擎切换后自动重新生成预览
+    - 所有计算函数调用修改为异步调用，支持 WebGPU 并行计算模式
+  - **UI改进**:
+    - 在控制面板添加优雅的滑块切换按钮
+    - 显示当前 WebGPU 状态（可用/不可用）
+    - 当 WebGPU 不可用时自动回退到 CPU 模式并禁用切换
+  - **降级机制**:
+    - 浏览器不支持 WebGPU 时自动回退到 CPU 实现
+    - WebGPU 初始化失败时提供清晰的错误信息
+
+## 2025-05-18 18:26 (织)
+
+- **重构 `patLineGenerator.js`**:
+    - **主要目标**: 拆分过长的 `generateLinesForRuleInPreview` 函数，提高代码模块化和可读性。
+    - **主要改动**:
+        - `generateLinesForRuleInPreview`: 保留了计算平行线族迭代范围 (`pStepsMin`, `pStepsMax`) 和 `pStep` 循环的逻辑。在循环内部，调用新的辅助函数 `processSingleParallelLine` 处理单条平行线的线段生成。
+        - **新增 `processSingleParallelLine` 函数**: 
+            - 接收单条平行线的相关参数（基准原点、角度信息、虚线定义、`deltaX`、预览框等）。
+            - 根据 `dashes` 参数是否存在，决定调用 `generateSolidSegmentForLine` (处理实线) 或 `generateDashedSegmentsForLine` (处理虚线)。
+            - 返回生成的线段数组、实际增加的线条数以及潜在的错误信息。
+        - **新增 `generateSolidSegmentForLine` 函数**:
+            - 负责具体实线线段的几何计算和裁剪。
+            - 处理有限长度实线 (`deltaX != 0`) 和"无限长"实线 (`deltaX == 0`) 两种情况，并调用 `clipLineSegmentToRect` 进行裁剪。
+        - **新增 `generateDashedSegmentsForLine` 函数**:
+            - 负责具体虚线线段的几何计算和裁剪。
+            - 处理 `deltaX` 为零 (虚线沿线重复) 和 `deltaX` 非零 (虚线组按 `deltaX` 重复) 两种主要情况。
+            - 内部管理虚线模式的迭代、单个虚线段的计算和裁剪，并处理线条数量上限。
+    - **效果**: 原本复杂的 `generateLinesForRuleInPreview` 函数的核心逻辑被分解到多个更小、职责更单一的函数中，使得每个函数的逻辑更清晰，易于理解和维护。
+    - 相关的错误处理和线条数量限制逻辑也随之分散到新函数中，并通过返回值向上传递。
+
+## 2025-05-18 织
+
+- **创建 `patParser.js`**: 
+    - 包含 `parsePatContent` 函数，用于解析 PAT 文件字符串内容。
+    - 从 `textureBackerDemo` 项目中的 `patLoader.js` 迁移并调整了注释和部分逻辑，使其更专注于解析任务。
+- **创建 `patLineGenerator.js`**:
+    - 包含 `createPatternFromPATFile` 函数，用于根据解析后的 PAT 数据生成线条序列。
+    - 从 `textureBackerDemo` 项目中的 `patLoader.js` 迁移并调整。
+    - 优化了 JSDoc 注释，明确了输入参数和输出结构。
+    - 调整了 `originOffsetX` 和 `originOffsetY` 的默认值为生成画布的中心。
+    - 增强了对边界条件和重复步数的计算，增加了安全边距。
+    - 细化了对虚线模式中特殊情况（如零长度虚线定义）的处理逻辑。
+- **目的**: 将 PAT 文件处理的核心逻辑模块化，分离解析与生成步骤，为后续在 `example` UI 中调用和测试打下基础。 
+
+## [[timestamp]] 织
+
+- **`patLineGenerator.js` (`createPatternFromPATFile`)**:
+    - 将原先硬编码的 `MAX_GENERATED_LINES` (值为 10000) 修改为一个新的函数参数 `maxGeneratedLines`。
+    - JSDoc 中为该参数添加了说明，并设置了默认值为 10000。
+    - 此修改允许调用方动态控制生成图案时的最大线条数量，增强了灵活性并避免了因图案复杂导致的潜在性能问题或截断。 
+
+## 2024-MM-DD (织)
+
+- **修复 `my-pat-loader/example/src/App.vue` 中的导入错误:**
+    - **问题**: `App.vue` 尝试从 `patLineGenerator.js` 导入一个不存在的函数 `createPatternFromPATFile`，导致运行时错误。
+    - **修改**:
+        1. 将 `App.vue` 中的导入语句从 `import { createPatternFromPATFile } from '../../src/patLineGenerator.js';` 修改为 `import { generatePatternPresentation } from '../../src/patLineGenerator.js';`。
+        2. 相应地，将调用 `createPatternFromPATFile(generationParams)` 的地方修改为 `generatePatternPresentation(generationParams)`。
+        3. 更新了 `generationParams` 对象的结构以匹配 `generatePatternPresentation` 函数的参数签名。具体地：
+            - `generationWidth` 和 `generationHeight` 合并为 `previewBox: { x: 0, y: 0, width: ..., height: ... }`。
+            - `uvWidthScale` 和 `uvHeightScale` 合并为 `uvScale: { width: ..., height: ... }`。
+            - `patLineWidth` 重命名为 `defaultLineWidth`。
+            - `maxGeneratedLines` 重命名为 `maxTotalGeneratedLines`。
+    - **原因**: `patLineGenerator.js` 实际导出的函数是 `generatePatternPresentation`。确保前端示例代码使用正确的函数名和参数结构。 
