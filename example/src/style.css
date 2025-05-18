@@ -1,0 +1,177 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+#app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.vanilla:hover {
+  filter: drop-shadow(0 0 2em #f7df1eaa);
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+.controls,
+.pat-info-area,
+.canvas-area {
+  background-color: #2f2f2f;
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.controls label {
+  margin-right: 0.5rem;
+}
+
+input[type="file"] {
+  border: 1px solid #555;
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+#patName,
+#patDescription {
+  margin-bottom: 0.5rem;
+  word-break: break-all;
+}
+
+#lineDefinitions {
+  max-height: 300px;
+  overflow-y: auto;
+  background-color: #1e1e1e;
+  padding: 1rem;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.line-def-item {
+  border-bottom: 1px solid #444;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.line-def-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.line-def-item p {
+  margin: 0.2rem 0;
+}
+
+.line-def-item strong {
+ color: #87ceeb; /* Sky blue for emphasis */
+}
+
+#patCanvas {
+  border: 1px solid #555;
+  background-color: #fff; /* White background for canvas to see lines clearly */
+  width: 100%;
+  max-width: 600px; /* Limit canvas width for now */
+  aspect-ratio: 1 / 1; /* Default to square, can be changed by pat aspect ratio */
+  margin-top: 1rem;
+}
+
+/* Dark mode specific adjustments if needed later */
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+  .controls,
+  .pat-info-area,
+  .canvas-area {
+    background-color: #f0f0f0;
+  }
+  #lineDefinitions {
+    background-color: #e8e8e8;
+    color: #333;
+  }
+  .line-def-item strong {
+    color: #007acc; 
+  }
+  #patCanvas {
+    background-color: #fdfdfd;
+    border: 1px solid #ccc;
+  }
+}

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PAT 文件查看器 (Vue)</title>
+    <link rel="stylesheet" href="./src/style.css">
+  </head>
+  <body>
+    <div id="app">
+      <h1>PAT File Loader & Viewer</h1>
+      
+      <div class="controls">
+        <label for="patFile">Choose a .PAT file:</label>
+        <input type="file" id="patFile" accept=".pat" />
+      </div>
+
+      <div class="pat-info-area">
+        <h2>Pattern Details</h2>
+        <div id="patName">Name: -</div>
+        <div id="patDescription">Description: -</div>
+        
+        <h3>Line Definitions (<span id="lineDefCount">0</span>)</h3>
+        <div id="lineDefinitions">
+          <p>Load a PAT file to see line definitions.</p>
+        </div>
+      </div>
+
+      <div class="canvas-area">
+        <h2>Pattern Preview</h2>
+        <canvas id="patCanvas"></canvas>
+      </div>
+
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
