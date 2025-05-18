@@ -511,18 +511,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
  * @returns {Promise<Array<object>>} 生成的线段数组
  */
 export async function computePatternLinesGPU(parsedPatData, boundary, scale = 1.0, rotation = 0.0, offset = [0, 0]) {
-  // 添加版本信息和详细日志
-  //console.debug(`WebGPU着色器版本: ${SHADER_VERSION}，开始计算...`);
-  //console.debug(`输入: ${parsedPatData.linesDefs.length}条线定义, 缩放=${scale}, 旋转=${rotation}度, 偏移=[${offset}]`);
-  
-  // 打印每条线定义的关键信息，帮助调试
   parsedPatData.linesDefs.forEach((ld, index) => {
     // 添加重要输出，计算各个角度的sin和cos值，帮助定位问题
     const angle = ld.angle;
-    const angleRad = angle * (Math.PI / 180);
-    //console.debug(`线定义[${index}]: 角度=${angle}, 弧度=${angleRad.toFixed(4)}, `+
-     // `sin=${Math.sin(angleRad).toFixed(4)}, cos=${Math.cos(angleRad).toFixed(4)}, `+
-      //`原点=[${ld.origin}], delta=[${ld.delta}], 虚线数=${ld.dashes?.length || 0}`);
     
     // 检查关键的角度
     if (Math.abs(angle - 90) < 0.001 || Math.abs(angle - 270) < 0.001) {
@@ -606,14 +597,7 @@ export async function computePatternLinesGPU(parsedPatData, boundary, scale = 1.
   // Number of line definitions to process
   const numLineDefsToProcess = linesDefs.length;
   if (numLineDefsToProcess === 0) return [];
-  
-  // 打印调试信息 - 显示输入数据的详细信息
-  ////console.debug(`创建WebGPU缓冲区，角度数据:`);
-  for (let i = 0; i < lineDefData.length; i += 6) {
-    if (i + 5 < lineDefData.length) {
-      //console.debug(`线定义[${i/6}]: 角度=${lineDefData[i]}, 原点=[${lineDefData[i+1]},${lineDefData[i+2]}], delta=[${lineDefData[i+3]},${lineDefData[i+4]}], 虚线数=${lineDefDataView.getUint32((i+5)*4, true)}`);
-    }
-  }
+
   
   // 创建线定义缓冲区
   const lineDefBuffer = device.createBuffer({
@@ -716,36 +700,15 @@ export async function computePatternLinesGPU(parsedPatData, boundary, scale = 1.
 
   const lines = [];
   
-  // 调试信息
-  //console.debug(`WebGPU计算开始: ${numLineDefsToProcess}条线定义，缩放=${scale}, 旋转=${rotation}度, 偏移=[${offset}]`);
-  //console.debug(`GPU计算完成，处理了 ${numLineDefsToProcess} 条线段定义`);
-  //console.debug(`数据缓冲区长度: ${resultData.length}`);
-  
-  // 检查是否有太多线条都有effectiveDeltaY接近0的情况
-  let zeroEffectiveDeltaY = 0;
-  for (const ld of linesDefs) {
-    if (Math.abs(ld.delta[1] * scale) < 1e-10) {
-      zeroEffectiveDeltaY++;
-      // 详细记录这些线定义的信息
-      //console.debug(`线定义delta[1]接近0: 角度=${ld.angle}, delta=[${ld.delta}], 有效delta=[${ld.delta[0]*scale}, ${ld.delta[1]*scale}]`);
-    }
-  }
-  if (zeroEffectiveDeltaY > 0) {
-    //console.debug(`注意: ${zeroEffectiveDeltaY}/${linesDefs.length}条线定义的effectiveDeltaY接近零`);
-  }
-  
-  // 解析结果数据，每5个浮点数表示一个线段
-  // 因为我们不知道每个线定义生成了多少条线，所以需要遍历整个结果缓冲区
-  // 有效线段会将isValid标志设置为非零值
+
+
   const maxOutputLines = Math.floor(resultData.length / 5);
   
   for (let i = 0; i < maxOutputLines; i++) {
     const baseIdx = i * 5;
     
-    // 确保我们不会越界
     if (baseIdx + 4 >= resultData.length) break;
     
-    // 检查isValid标志（第5个元素）- 精确匹配CPU版本的结果格式
     if (resultData[baseIdx + 4] !== 0) { 
       // 确保数据不是NaN或Infinity
       if (isFinite(resultData[baseIdx]) && 
@@ -753,7 +716,6 @@ export async function computePatternLinesGPU(parsedPatData, boundary, scale = 1.
           isFinite(resultData[baseIdx + 2]) && 
           isFinite(resultData[baseIdx + 3])) {
         
-        // CPU版本返回的格式: { start: {x, y}, end: {x, y} }
         lines.push({
           start: { 
             x: Number(resultData[baseIdx]), 
@@ -768,62 +730,8 @@ export async function computePatternLinesGPU(parsedPatData, boundary, scale = 1.
     }
   }
   
-  //console.debug(`GPU计算生成了 ${lines.length} 条有效线段`);
   
-  // 添加更详细的诊断信息
-  if (lines.length === 0) {
-    //console.debug("诊断信息: 未生成线段，检查原始输出数据...");
-    
-    // 检查结果缓冲区中是否有任何数据
-    let hasAnyValidData = false;
-    let hasNonZeroValues = false;
-    
-    // 检查前100组数据
-    for (let i = 0; i < Math.min(100 * 5, resultData.length); i += 5) {
-      if (i + 4 < resultData.length) {
-        // 检查是否有标记为有效的线段
-        if (resultData[i + 4] !== 0) {
-          hasAnyValidData = true;
-          //console.debug(`找到有效标记的线段数据 [${i/5}]: [${resultData[i]}, ${resultData[i+1]}, ${resultData[i+2]}, ${resultData[i+3]}, ${resultData[i+4]}]`);
-        }
-        
-        // 检查是否有非零坐标（即使标记为无效）
-        const EPSILON = 1e-6; // 数值比较容差
-        if (Math.abs(resultData[i]) > EPSILON || 
-            Math.abs(resultData[i+1]) > EPSILON || 
-            Math.abs(resultData[i+2]) > EPSILON || 
-            Math.abs(resultData[i+3]) > EPSILON) {
-          hasNonZeroValues = true;
-          //console.debug(`找到非零坐标(但可能无效)线段数据 [${i/5}]: [${resultData[i]}, ${resultData[i+1]}, ${resultData[i+2]}, ${resultData[i+3]}, ${resultData[i+4]}]`);
-        }
-      }
-    }
-    
-    if (!hasAnyValidData) {
-      //console.debug("结果中没有找到有效标记的线段数据，clipLine函数可能将所有线段标记为无效");
-      
-      if (!hasNonZeroValues) {
-        //console.debug("结果中所有坐标均为零，着色器可能没有正确执行或生成线段");
-      } else {
-        //console.debug("有非零坐标但全部被标记为无效，检查clipLine函数的实现");
-      }
-    }
-    
-    // 诊断边界值
-    //console.debug(`边界值: minX=${minX}, minY=${minY}, maxX=${maxX}, maxY=${maxY}, 缩放=${scale}`);
-  }
-  
-  // 在返回结果前，添加结果摘要
-  //console.debug(`GPU生成了${lines.length}条线段，详细信息:`);
-  if (lines.length > 0) {
-    // 输出一些线段示例
-    //console.debug(`示例线段[0]: 起点=(${lines[0].start.x}, ${lines[0].start.y}), 终点=(${lines[0].end.x}, ${lines[0].end.y})`);
-    if (lines.length > 1) {
-      //console.debug(`示例线段[${lines.length-1}]: 起点=(${lines[lines.length-1].start.x}, ${lines[lines.length-1].start.y}), 终点=(${lines[lines.length-1].end.x}, ${lines[lines.length-1].end.y})`);
-    }
-  } else {
-    //console.warn("GPU没有生成任何线段! 检查输入数据和着色器实现");
-  }
+ 
   
   return lines;
 }
