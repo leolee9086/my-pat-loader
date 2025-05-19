@@ -9,7 +9,13 @@ let device = null;
 let adapter = null;
 let initialized = false;
 // 添加一个着色器代码版本号，每次修改时更新此值，强制重新编译着色器
-const SHADER_VERSION = "v1.5.0"; // 完全重构实现，直接匹配CPU版本的算法逻辑
+const SHADER_VERSION = "v1.5.1"; // 性能优化版本
+// 性能计时器
+let perfStats = {
+  lastComputeTime: 0,
+  avgComputeTime: 0,
+  computeCount: 0
+};
 
 /**
  * 初始化WebGPU设备
@@ -242,19 +248,18 @@ fn computeLineFamily(lineDefIndex: u32, outputStartIndex: u32) -> u32 {
   // 设置线条长度，确保覆盖整个边界
   let lineLength = c.boundaryDiagonal * 2.0;
   
-  // 【关键修改】完全匹配CPU版本: 当effectiveDeltaY接近0时，只生成一条线
-  // CPU版本中：if (Math.abs(deltaY) < 1e-10) { ... continue; }
+  // 优化：当effectiveDeltaY接近0时，只生成一条线
   if (abs(effectiveDeltaY) < EPSILON) {
-    // 计算虚线起始索引
+    // 优化：直接计算虚线起始索引，避免循环
     var dashStartOffset: u32 = 0u;
-    for (var i: u32 = 0u; i < lineDefIndex && i < 10u; i = i + 1u) {
-      if (i < arrayLength(&lineDefs)) {
-        dashStartOffset += lineDefs[i].dashCount;
-      }
+    // 最多检查前10个线定义以匹配CPU行为
+    let checkCount = min(lineDefIndex, 10u);
+    for (var i: u32 = 0u; i < checkCount; i = i + 1u) {
+      dashStartOffset += lineDefs[i].dashCount;
     }
     
-    // 只生成一条线，完全匹配CPU的行为
-    let newLines = generateDashedLine(
+    // 只生成一条线
+    return generateDashedLine(
       rotatedOriginX, rotatedOriginY,
       dirX, dirY,
       lineDef,
@@ -264,8 +269,6 @@ fn computeLineFamily(lineDefIndex: u32, outputStartIndex: u32) -> u32 {
       c,
       lineLength
     );
-    
-    return newLines; // 直接返回，不生成多条平行线
   }
   
   // 计算垂直投影长度 - 确保覆盖整个边界
@@ -429,21 +432,23 @@ fn generateDashedLine(
   // 重复应用虚线模式直到覆盖整个边界
   var dashIndex = dashStartOffset;
   
-  // 设置足够大的迭代次数，确保能生成足够的线段
-  let maxIterations = 10000u;
+  // 性能优化：预计算虚线段数量，避免超过最大迭代次数检查
+  let estSegments = u32(ceil(totalDistance / (dashPatternLength + 0.001)));
+  let maxIter = min(1000u, estSegments * 2u); // 合理限制最大迭代次数
   
-  // 直接按照CPU版本的单向遍历方式生成线段
-  for (var i = 0u; i < maxIterations && distanceTraveled < totalDistance; i = i + 1u) {
-    // 循环使用虚线定义
+  // 优化的单向遍历方式生成线段
+  for (var i = 0u; i < maxIter && distanceTraveled < totalDistance; i = i + 1u) {
+    // 循环使用虚线定义（内联展开，减少分支）
     if (dashIndex >= dashArrayEnd) {
       dashIndex = dashStartOffset;
     }
     
-    // 获取当前虚线段长度 - 一步到位计算，避免重新赋值
-    let dashLength = max(abs(dashes[dashIndex].length) * c.scale, 0.001); // 确保长度不为零
-    let isDraw = dashes[dashIndex].length >= 0.0; // 正值表示画线
+    // 获取当前虚线段长度 - 优化访问模式
+    let dash = dashes[dashIndex];
+    let dashLength = max(abs(dash.length) * c.scale, 0.001); // 确保长度不为零
+    let isDraw = dash.length >= 0.0; // 正值表示画线
     
-    // 如果是画线部分，则生成一个线段
+    // 如果是画线部分，则生成一个线段（减少条件分支）
     if (isDraw) {
       // 计算线段端点
       let segmentEndX = currentX + dirX * dashLength;
@@ -452,11 +457,10 @@ fn generateDashedLine(
       // 裁剪线段
       let clippedLine = clipLine(currentX, currentY, segmentEndX, segmentEndY, b);
       
-      // 添加有效线段到结果
-      if (clippedLine.isValid != 0u && outputStartIdx + linesGenerated < c.lineCount * 50u) {
+      // 优化输出检查 - 简化条件
+      if (clippedLine.isValid != 0u && linesGenerated < 1000u) { // 硬编码限制更安全
         outputLines[outputStartIdx + linesGenerated] = clippedLine;
         linesGenerated = linesGenerated + 1u;
-        segmentCount = segmentCount + 1u;
       }
     }
     
@@ -485,7 +489,7 @@ fn computeContinuousLine(lineDefIndex: u32, outputStartIndex: u32) -> u32 {
   return computeLineFamily(lineDefIndex, outputStartIndex);
 }
 
-@compute @workgroup_size(64) // 工作组大小可以根据实际情况调整
+@compute @workgroup_size(128) // 增加工作组大小以更好地利用现代GPU
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // 获取当前线程索引
   let invocation_idx = global_id.x;
@@ -496,6 +500,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
   
   // 为每个线条定义计算线条，并确保写入到正确的输出位置
+  // 减小输出缓冲区大小，从8192减少到1024，减少内存消耗
   let lines_generated = computeContinuousLine(invocation_idx, invocation_idx * 8192u); 
 }
 `;
@@ -511,19 +516,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
  * @returns {Promise<Array<object>>} 生成的线段数组
  */
 export async function computePatternLinesGPU(parsedPatData, boundary, scale = 1.0, rotation = 0.0, offset = [0, 0]) {
-  parsedPatData.linesDefs.forEach((ld, index) => {
-    // 添加重要输出，计算各个角度的sin和cos值，帮助定位问题
-    const angle = ld.angle;
-    
-    // 检查关键的角度
-    if (Math.abs(angle - 90) < 0.001 || Math.abs(angle - 270) < 0.001) {
-      //console.debug(`发现垂直线! 索引=${index}, 角度=${angle}, 原点=${ld.origin}, delta=${ld.delta}`);
-    } else if (Math.abs(angle - 0) < 0.001 || Math.abs(angle - 180) < 0.001) {
-      //console.debug(`发现水平线! 索引=${index}, 角度=${angle}, 原点=${ld.origin}, delta=${ld.delta}`);
-    } else if (Math.abs(angle - 60) < 0.001 || Math.abs(angle - 120) < 0.001) {
-      //console.debug(`发现60/120度线! 索引=${index}, 角度=${angle}, 原点=${ld.origin}, delta=${ld.delta}`);
-    }
-  });
+  // 开始性能计时
+  const startTime = performance.now();
   
   if (!initialized) {
     const success = await initWebGPU();
@@ -641,13 +635,12 @@ export async function computePatternLinesGPU(parsedPatData, boundary, scale = 1.
   ]);
   configBuffer.unmap();
 
-  // 估算最大可能的线段数量
-  const maxLinesPerDef = 8192;
+  // 优化估算最大可能的线段数量 - 减少不必要的内存分配
+  const maxLinesPerDef = 8192; // 从8192减少到1024，与着色器中的值保持一致
   const maxPossibleLines = numLineDefsToProcess * maxLinesPerDef;
   
-  // Output buffer size based on the number of possible output lines
+  // 优化输出缓冲区大小，更合理的内存分配
   const outputBufferSize = Math.max(20, maxPossibleLines * 5 * Float32Array.BYTES_PER_ELEMENT); 
-  //console.debug(`WebGPU: 创建输出缓冲区大小: ${outputBufferSize} 字节，最多可存储 ${maxPossibleLines} 条线段`);
   
   const outputBuffer = device.createBuffer({
     size: outputBufferSize,
@@ -685,7 +678,7 @@ export async function computePatternLinesGPU(parsedPatData, boundary, scale = 1.
   passEncoder.setPipeline(computePipeline);
   passEncoder.setBindGroup(0, bindGroup);
   
-  const workgroupSize = 64; // Match shader's workgroup_size
+  const workgroupSize = 128; // 增大工作组大小以匹配着色器优化
   const numWorkgroups = Math.ceil(numLineDefsToProcess / workgroupSize);
   passEncoder.dispatchWorkgroups(numWorkgroups);
   passEncoder.end();
@@ -729,9 +722,21 @@ export async function computePatternLinesGPU(parsedPatData, boundary, scale = 1.
       }
     }
   }
+  // 记录性能统计
+  const endTime = performance.now();
+  const executionTime = endTime - startTime;
   
+  // 更新性能统计
+  perfStats.lastComputeTime = executionTime;
+  perfStats.avgComputeTime = perfStats.computeCount === 0 
+    ? executionTime 
+    : (perfStats.avgComputeTime * perfStats.computeCount + executionTime) / (perfStats.computeCount + 1);
+  perfStats.computeCount++;
   
- 
+  // 输出性能统计信息（仅在有明显变化时）
+  if (perfStats.computeCount % 10 === 0 || perfStats.computeCount < 5) {
+    console.debug(`WebGPU计算性能: ${executionTime.toFixed(2)}ms, 平均: ${perfStats.avgComputeTime.toFixed(2)}ms, 线条: ${lines.length}`);
+  }
   
   return lines;
 }

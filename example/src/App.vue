@@ -116,7 +116,7 @@ import { parsePatContent } from '../../src/patParser.js';
 
 // 导入默认的CPU版本作为备用
 import * as patCpuCalculator from '../../src/patCalculator.js';
-import * as optimizedPatCalculator from '../../src/patCalculatorUltra.js';
+//import * as patCpuCalculator from '../../src/patCalculatorOptimized.js';
 // 图案计算模块 (根据使用引擎动态变化)
 let patCalculator = patCpuCalculator;
 
