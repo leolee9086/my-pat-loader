@@ -1,9 +1,15 @@
 {
-  "name": "my-pat-loader",
+  "name": "@leolee9086/my-pat-loader",
   "version": "1.0.0",
   "description": "AutoCAD PAT（填充图案）文件解析和线段生成工具",
   "main": "index.js",
   "type": "module",
+  "files": [
+    "src",
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -16,10 +22,10 @@
     "cad",
     "parser"
   ],
-  "author": "SiYuan",
+  "author": "leolee9086 & 织",
   "license": "AGPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/my-pat-loader"
+    "url": "https://github.com/leolee9086/my-pat-loader"
   }
 }
