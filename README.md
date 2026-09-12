@@ -109,4 +109,12 @@ AutoCAD PAT文件格式的基本结构如下：
 
 ## 许可
 
-AGPL-3.0 
+AGPL-3.0
+
+## 赞赏
+
+如果这个项目帮到了你，可以请我喝杯咖啡：
+
+![赞赏码](assets/sponsor-qr.png)
+
+也欢迎通过 [爱发电](https://afdian.net/a/leolee9086) 支持。
